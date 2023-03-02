@@ -1,23 +1,27 @@
+use std::collections::{BTreeSet, HashMap};
+
 struct Problem {
-    addends: Vec<Vec<(char, Box<u8>)>>,
-    answer: Vec<(char, Box<u8>)>,
-    legend: Vec<u8>,
+    addends: Vec<String>,
+    answer: String,
+    legend: HashMap<char, u8>,
+    unique: Vec<char>,
+    largest: usize,
 }
 
 impl Problem {
     fn word_problem(&self) -> String {
         format!(
             "{}{} = {}",
-            self.addends[0].iter().map(|(c, _)| *c).collect::<String>(),
+            self.addends[0],
             self.addends[1..]
                 .iter()
-                .map(|v| {
-                    let mut s = String::from(" + ");
-                    s.push_str(&v.iter().map(|(c, _)| *c).collect::<String>());
+                .map(|s| {
+                    let mut s = s.clone();
+                    s.insert_str(0, " + ");
                     s
                 })
                 .collect::<String>(),
-            self.answer.iter().map(|(c, _)| *c).collect::<String>()
+            self.answer
         )
     }
 
@@ -25,155 +29,135 @@ impl Problem {
         format!(
             "{}{} = {}",
             self.addends[0]
-                .iter()
-                .map(|(_, n)| n.to_string())
+                .chars()
+                .map(|c| self.legend.get(&c).unwrap().to_string())
                 .collect::<String>(),
-            self.addends[1..]
-                .iter()
-                .map(|v| {
-                    let mut s = String::from(" + ");
-                    s.push_str(
-                        &v.iter()
-                            .map(|(_, n)| n.to_string())
-                            .collect::<String>(),
-                    );
-                    s
-                })
-                .collect::<String>(),
+            if self.addends.len() > 0 {
+                self.addends[1..]
+                    .iter()
+                    .map(|s| {
+                        let mut s = s
+                            .chars()
+                            .map(|c| self.legend.get(&c).unwrap().to_string())
+                            .collect::<String>();
+                        s.insert_str(0, " + ");
+                        s
+                    })
+                    .collect::<String>()
+            } else {
+                "".to_string()
+            },
             self.answer
-                .iter()
-                .map(|(_, n)| n.to_string())
-                .collect::<String>()
+                .chars()
+                .map(|c| self.legend.get(&c).unwrap().to_string())
+                .collect::<String>(),
         )
     }
 
     fn new(expr: String) -> Problem {
-        let mut track = Vec::<char>::new();
-
         let mut count = 0;
 
         let mut problem = Problem {
-            addends: Vec::<Vec<(char, Box<u8>)>>::new(),
-            answer: Vec::<(char, Box<u8>)>::new(),
-            legend: Vec::<u8>::new(),
+            addends: Vec::<String>::new(),
+            answer: String::new(),
+            legend: HashMap::<char, u8>::new(),
+            unique: Vec::<char>::new(),
+            largest: 0,
         };
 
         for c in expr.chars() {
             if c.is_alphabetic() {
                 let c = c.to_uppercase().to_string().chars().nth(0).unwrap();
 
-                if !track.contains(&c) {
-                    problem.legend.push(count);
-                    track.push(c);
+                if !problem.unique.contains(&c) {
+                    problem.legend.insert(c, count);
+                    problem.unique.push(c);
                     count += 1;
                 }
             }
         }
 
-        let mut temp = Vec::<char>::new();
+        let mut temp = String::new();
 
         for c in expr.chars() {
+            let c = c.to_uppercase().to_string().chars().nth(0).unwrap();
+
             if c.is_alphabetic() {
                 temp.push(c);
             } else if c == '+' {
-                let mut addend = Vec::<(char, Box<u8>)>::new();
-
-                for i in temp {
-                    let i = i.to_uppercase().to_string().chars().nth(0).unwrap();
-                    addend.push((
-                        i,
-                        Box::new(problem.legend[track.iter().rposition(|&x| x == i).unwrap()]),
-                    ));
-                }
-
-                temp = Vec::<char>::new();
-                problem.addends.push(addend);
+                problem.addends.push(temp);
+                temp = String::new();
             } else if c == '=' {
                 if problem.addends.len() == 0 {
-                    for i in temp {
-                        problem.answer.push((
-                            i,
-                            Box::new(
-                                problem.legend[track.iter().rposition(|&x| x == i).unwrap()],
-                            ),
-                        ));
-                    }
-
-                    temp = Vec::<char>::new();
+                    problem.answer = temp;
+                    temp = String::new();
                 } else {
-                    let mut addend = Vec::<(char, Box<u8>)>::new();
-
-                    for i in temp {
-                        let i = i.to_uppercase().to_string().chars().nth(0).unwrap();
-                        addend.push((
-                            i,
-                            Box::new(
-                                problem.legend[track.iter().rposition(|&x| x == i).unwrap()],
-                            ),
-                        ));
-                    }
-
-                    temp = Vec::<char>::new();
-                    problem.addends.push(addend);
+                    problem.addends.push(temp);
+                    temp = String::new();
                 }
             }
         }
 
         if problem.answer.len() == 0 {
-            for i in temp {
-                let i = i.to_uppercase().to_string().chars().nth(0).unwrap();
-                problem.answer.push((
-                    i,
-                    Box::new(problem.legend[track.iter().rposition(|&x| x == i).unwrap()]),
-                ));
-            }
+            problem.answer = temp;
         } else {
-            let mut addend = Vec::<(char, Box<u8>)>::new();
-
-            for i in temp {
-                addend.push((
-                    i,
-                    Box::new(problem.legend[track.iter().rposition(|&x| x == i).unwrap()]),
-                ));
-            }
-
-            problem.addends.push(addend);
+            problem.addends.push(temp);
         }
 
+        problem.largest = problem.addends.iter().fold(0, |l, a| if a.len() < l { l } else { a.len() } );
+        
         problem
     }
-    
+
     fn valid(&self) -> bool {
         let mut valid = true;
-        
-        for i in 0..self.addends.len() {
-            valid = valid && (self.addends.iter().fold(0, |sum, vec| {
-                sum + *vec.get(i).unwrap_or(&('a', Box::new(0))).1
-            }) == *self.answer.get(i).unwrap_or(&('a', Box::new(0))).1);
+        println!("{:?}", self.legend);
+
+        for i in 0..self.largest {
+            let num = self.addends.iter().map(|s| *self.legend.get(&s.chars().nth(i).unwrap()).unwrap()).sum::<u8>();
+            let carry = num / 10;
+            valid = valid
+                && (carry + (num % 10) == *self.legend.get(&self.answer.chars().nth(i).unwrap()).unwrap());
         }
-        
+
         valid
     }
-    
+
     fn solve(&mut self) -> bool {
-        for n in self.legend.len() as u8..10_u8 {
-            self.legend.push(n);
-        }
-            
-        for i in 0..self.legend.len() {
-            for j in i + 1..self.legend.len() {
-                if self.valid() {
-                    return true;
-                } else {
-                    self.legend.swap(i, j);
+        // loop through each unique letter
+        for i in 0..self.unique.len() {
+            // try each number for the letters
+            for j in 0..10 {
+                println!("----------------");
+                println!("{:?}", self.unique);
+                let mut nums = BTreeSet::new();
+                for x in 0..10 { nums.insert(x); }
+                self.legend.insert(self.unique[i], j);
+                nums.remove(&j);
+                
+                // loop through all the other letters
+                for k in 0..self.unique.len() {
+                    if self.valid() {
+                        return true;
+                    } else {
+                        if i != j as usize {
+                            // find unique numbers
+                            for x in 0..10 {
+                                println!("Testing: {x}");
+                                if nums.remove(&x) {
+                                    println!("Setting {} to {x}", self.unique[k]);
+                                    self.legend.insert(self.unique[k], x);
+                                    break;
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
-        
+
         false
     }
-    
-    
 }
 
 fn main() {
@@ -181,9 +165,9 @@ fn main() {
     let mut problem = Problem::new(String::from("a + b = c"));
 
     println!("{}", problem.word_problem());
-    
+
     if problem.solve() {
-        println!("{}", problem.number_problem());
+        println!("Solved: {}", problem.number_problem());
     } else {
         println!("Unable to solve: {}", problem.word_problem());
     }
